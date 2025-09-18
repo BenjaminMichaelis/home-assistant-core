@@ -589,3 +589,329 @@ def test_run_with_config_path() -> None:
         # The config_dir should include the full path
         expected_path = os.path.join(os.getcwd(), test_config_path)
         assert parsed_json["config_dir"] == expected_path
+
+
+# Flag Interaction Tests
+
+
+def test_flag_order_independence() -> None:
+    """Test that flag order doesn't affect behavior."""
+    with (
+        patch("builtins.print") as mock_print1,
+        patch.object(check_config, "check") as mock_check1,
+    ):
+        mock_check1.return_value = {
+            "except": {"domain1": ["error1"]},
+            "warn": {"domain2": ["warning1"]},
+            "components": {"homeassistant": {}},
+            "secrets": {},
+            "secret_cache": {},
+            "yaml_files": {},
+        }
+
+        exit_code1 = check_config.run(["--json", "--fail-on-warnings"])
+
+    with (
+        patch("builtins.print") as mock_print2,
+        patch.object(check_config, "check") as mock_check2,
+    ):
+        mock_check2.return_value = {
+            "except": {"domain1": ["error1"]},
+            "warn": {"domain2": ["warning1"]},
+            "components": {"homeassistant": {}},
+            "secrets": {},
+            "secret_cache": {},
+            "yaml_files": {},
+        }
+
+        exit_code2 = check_config.run(["--fail-on-warnings", "--json"])
+
+    # Both should have same exit code and JSON output
+    assert exit_code1 == exit_code2 == 1
+    assert mock_print1.call_count == mock_print2.call_count == 1
+
+    json_output1 = json.loads(mock_print1.call_args[0][0])
+    json_output2 = json.loads(mock_print2.call_args[0][0])
+    assert json_output1 == json_output2
+
+
+def test_unknown_arguments_with_json() -> None:
+    """Test that unknown arguments are handled properly with JSON flag."""
+    with (
+        patch("builtins.print") as mock_print,
+        patch.object(check_config, "check") as mock_check,
+    ):
+        mock_check.return_value = {
+            "except": {},
+            "warn": {},
+            "components": {"homeassistant": {}},
+            "secrets": {},
+            "secret_cache": {},
+            "yaml_files": {},
+        }
+
+        check_config.run(["--json", "--unknown-flag", "value"])
+
+        # Should still print unknown argument warning AND JSON
+        assert mock_print.call_count == 2
+
+        # First call should be the unknown argument warning
+        unknown_warning = mock_print.call_args_list[0][0][0]
+        assert "Unknown arguments" in unknown_warning
+        assert "unknown-flag" in unknown_warning
+
+        # Second call should be valid JSON
+        json_output = mock_print.call_args_list[1][0][0]
+        parsed_json = json.loads(json_output)
+        assert "config_dir" in parsed_json
+
+
+def test_empty_script_args() -> None:
+    """Test that empty arguments don't crash the script."""
+    with (
+        patch("builtins.print") as mock_print,
+        patch.object(check_config, "check") as mock_check,
+    ):
+        mock_check.return_value = {
+            "except": {},
+            "warn": {},
+            "components": {"homeassistant": {}},
+            "secrets": {},
+            "secret_cache": {},
+            "yaml_files": {},
+        }
+
+        # Should not crash and should use default behavior (human-readable)
+        exit_code = check_config.run([])
+        assert exit_code == 0
+
+        # Should print at least the "Testing configuration at..." message
+        assert mock_print.call_count >= 1
+
+        # First call should be the header message
+        first_call = mock_print.call_args_list[0][0][0]
+        assert "Testing configuration at" in first_call
+
+
+@pytest.mark.parametrize("hass_config_yaml", [BASE_CONFIG])
+@pytest.mark.usefixtures("mock_is_file", "mock_hass_config_yaml")
+def test_all_flags_together() -> None:
+    """Test behavior when multiple flags are used together."""
+    with (
+        patch("builtins.print") as mock_print,
+        patch.object(check_config, "check") as mock_check,
+    ):
+        mock_check.return_value = {
+            "except": {},
+            "warn": {"light": ["warning message"]},
+            "components": {"homeassistant": {}, "light": {}},
+            "secrets": {"test_secret": "test_value"},
+            "secret_cache": {"secrets.yaml": {"test_secret": "test_value"}},
+            "yaml_files": {"/config/configuration.yaml": True},
+        }
+
+        # Test with --json, --fail-on-warnings, --secrets, and --files together
+        exit_code = check_config.run(
+            ["--json", "--fail-on-warnings", "--secrets", "--files"]
+        )
+
+        # Should exit with code 1 due to warnings + fail-on-warnings
+        assert exit_code == 1
+
+        # Should only print JSON (secrets and files should be ignored in JSON mode)
+        assert mock_print.call_count == 1
+
+        json_output = json.loads(mock_print.call_args[0][0])
+        assert json_output["total_warnings"] == 1
+        assert "light" in json_output["warnings"]
+
+
+@pytest.mark.parametrize("hass_config_yaml", [BASE_CONFIG])
+@pytest.mark.usefixtures("mock_is_file", "mock_hass_config_yaml")
+def test_info_flag_with_json() -> None:
+    """Test how --info flag interacts with --json."""
+    with (
+        patch("builtins.print") as mock_print,
+        patch.object(check_config, "check") as mock_check,
+    ):
+        mock_check.return_value = {
+            "except": {},
+            "warn": {},
+            "components": {"homeassistant": {}, "light": {"platform": "demo"}},
+            "secrets": {},
+            "secret_cache": {},
+            "yaml_files": {},
+        }
+
+        # Test --json with --info - JSON should take precedence
+        exit_code = check_config.run(["--json", "--info", "light"])
+
+        assert exit_code == 0
+        assert mock_print.call_count == 1
+
+        # Should be JSON output, not info output
+        json_output = json.loads(mock_print.call_args[0][0])
+        assert "config_dir" in json_output
+        assert "components" in json_output
+        assert "light" in json_output["components"]
+
+
+def test_config_flag_variations() -> None:
+    """Test different ways to specify config directory."""
+    test_cases = [
+        (["-c", "/test/path"], "/test/path"),
+        (["--config", "/test/path"], "/test/path"),
+        (["--json", "-c", "relative/path"], "relative/path"),
+        (["--config", ".", "--json"], "."),
+    ]
+
+    for flags, expected_config_part in test_cases:
+        with (
+            patch("builtins.print") as mock_print,
+            patch.object(check_config, "check") as mock_check,
+        ):
+            mock_check.return_value = {
+                "except": {},
+                "warn": {},
+                "components": {"homeassistant": {}},
+                "secrets": {},
+                "secret_cache": {},
+                "yaml_files": {},
+            }
+
+            check_config.run(flags)
+
+            if "--json" in flags:
+                json_output = json.loads(mock_print.call_args[0][0])
+                expected_full_path = os.path.join(os.getcwd(), expected_config_part)
+                assert json_output["config_dir"] == expected_full_path
+
+
+def test_flag_case_sensitivity() -> None:
+    """Test that flags are case sensitive (negative test)."""
+    with (
+        patch("builtins.print") as mock_print,
+        patch.object(check_config, "check") as mock_check,
+    ):
+        mock_check.return_value = {
+            "except": {},
+            "warn": {},
+            "components": {"homeassistant": {}},
+            "secrets": {},
+            "secret_cache": {},
+            "yaml_files": {},
+        }
+
+        # Uppercase flags should be treated as unknown arguments
+        check_config.run(["--JSON", "--FAIL-ON-WARNINGS"])
+
+        # Should print unknown arguments warning and then human-readable output
+        assert mock_print.call_count > 1
+
+        # First call should contain unknown argument warning
+        first_call = mock_print.call_args_list[0][0][0]
+        assert "Unknown arguments" in first_call
+        assert "JSON" in first_call
+
+
+def test_multiple_config_flags() -> None:
+    """Test behavior with multiple config directory specifications."""
+    with (
+        patch("builtins.print") as mock_print,
+        patch.object(check_config, "check") as mock_check,
+    ):
+        mock_check.return_value = {
+            "except": {},
+            "warn": {},
+            "components": {"homeassistant": {}},
+            "secrets": {},
+            "secret_cache": {},
+            "yaml_files": {},
+        }
+
+        # Last config flag should win
+        check_config.run(
+            ["--json", "--config", "/first/path", "--config", "/second/path"]
+        )
+
+        json_output = json.loads(mock_print.call_args[0][0])
+        expected_path = os.path.join(os.getcwd(), "/second/path")
+        assert json_output["config_dir"] == expected_path
+
+
+def test_json_with_errors_and_warnings_combinations() -> None:
+    """Test JSON output with various error/warning combinations."""
+    test_scenarios = [
+        # (errors, warnings, expected_exit_code)
+        ({}, {}, 0),
+        ({"domain1": ["error"]}, {}, 1),
+        ({}, {"domain1": ["warning"]}, 0),  # Without --fail-on-warnings
+        ({"d1": ["e1"]}, {"d2": ["w1"]}, 1),  # Errors take precedence
+        ({"d1": ["e1"], "d2": ["e2"]}, {}, 2),  # Multiple error domains
+        (
+            {"d1": ["e1", "e2"]},
+            {"d2": ["w1", "w2"]},
+            1,
+        ),  # Multiple errors in one domain = 1
+    ]
+
+    for errors, warnings, expected_exit in test_scenarios:
+        with (
+            patch("builtins.print") as mock_print,
+            patch.object(check_config, "check") as mock_check,
+        ):
+            mock_check.return_value = {
+                "except": errors,
+                "warn": warnings,
+                "components": {"homeassistant": {}},
+                "secrets": {},
+                "secret_cache": {},
+                "yaml_files": {},
+            }
+
+            exit_code = check_config.run(["--json"])
+            assert exit_code == expected_exit
+
+            json_output = json.loads(mock_print.call_args[0][0])
+            assert json_output["total_errors"] == sum(len(e) for e in errors.values())
+            assert json_output["total_warnings"] == sum(
+                len(w) for w in warnings.values()
+            )
+            assert json_output["errors"] == errors
+            assert json_output["warnings"] == warnings
+
+
+def test_fail_on_warnings_with_json_combinations() -> None:
+    """Test --fail-on-warnings with --json in various scenarios."""
+    test_scenarios = [
+        # (errors, warnings, expected_exit_code)
+        ({}, {}, 0),
+        ({"domain1": ["error"]}, {}, 1),
+        ({}, {"domain1": ["warning"]}, 1),  # With --fail-on-warnings
+        ({"d1": ["e1"]}, {"d2": ["w1"]}, 1),  # Errors still take precedence
+        ({"d1": ["e1"], "d2": ["e2"]}, {"d3": ["w1"]}, 2),  # Multiple errors > warnings
+    ]
+
+    for errors, warnings, expected_exit in test_scenarios:
+        with (
+            patch("builtins.print") as mock_print,
+            patch.object(check_config, "check") as mock_check,
+        ):
+            mock_check.return_value = {
+                "except": errors,
+                "warn": warnings,
+                "components": {"homeassistant": {}},
+                "secrets": {},
+                "secret_cache": {},
+                "yaml_files": {},
+            }
+
+            exit_code = check_config.run(["--json", "--fail-on-warnings"])
+            assert exit_code == expected_exit
+
+            # Should still output valid JSON
+            json_output = json.loads(mock_print.call_args[0][0])
+            assert json_output["total_errors"] == sum(len(e) for e in errors.values())
+            assert json_output["total_warnings"] == sum(
+                len(w) for w in warnings.values()
+            )
