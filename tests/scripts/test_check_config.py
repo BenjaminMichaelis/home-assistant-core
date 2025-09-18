@@ -194,9 +194,9 @@ def test_run_backwards_compatibility_no_flags() -> None:
     # Test with valid config
     exit_code = check_config.run([])
     assert exit_code == 0
-    
+
     # Test with config that has warnings
-    with patch.object(check_config, 'check') as mock_check:
+    with patch.object(check_config, "check") as mock_check:
         mock_check.return_value = {
             "except": {},
             "warn": {"light": ["warning message"]},
@@ -210,7 +210,7 @@ def test_run_backwards_compatibility_no_flags() -> None:
         assert exit_code == 0
 
     # Test with config that has errors
-    with patch.object(check_config, 'check') as mock_check:
+    with patch.object(check_config, "check") as mock_check:
         mock_check.return_value = {
             "except": {"homeassistant": ["error message"]},
             "warn": {},
@@ -227,7 +227,10 @@ def test_run_backwards_compatibility_no_flags() -> None:
 @pytest.mark.usefixtures("mock_is_file", "mock_hass_config_yaml")
 def test_run_json_flag_only() -> None:
     """Test that --json flag works independently."""
-    with patch('builtins.print') as mock_print, patch.object(check_config, 'check') as mock_check:
+    with (
+        patch("builtins.print") as mock_print,
+        patch.object(check_config, "check") as mock_check,
+    ):
         mock_check.return_value = {
             "except": {"domain1": ["error1", "error2"]},
             "warn": {"domain2": ["warning1"]},
@@ -236,19 +239,19 @@ def test_run_json_flag_only() -> None:
             "secret_cache": {},
             "yaml_files": {},
         }
-        
+
         exit_code = check_config.run(["--json"])
-        
+
         # Should exit with code 1 (1 domain with errors)
         assert exit_code == 1
-        
+
         # Should have printed JSON
         assert mock_print.call_count == 1
         json_output = mock_print.call_args[0][0]
-        
+
         # Verify it's valid JSON
         parsed_json = json.loads(json_output)
-        
+
         # Verify JSON structure
         assert "config_dir" in parsed_json
         assert "total_errors" in parsed_json
@@ -256,7 +259,7 @@ def test_run_json_flag_only() -> None:
         assert "errors" in parsed_json
         assert "warnings" in parsed_json
         assert "components" in parsed_json
-        
+
         # Verify JSON content
         assert parsed_json["total_errors"] == 2  # 2 error messages
         assert parsed_json["total_warnings"] == 1  # 1 warning message
@@ -270,7 +273,7 @@ def test_run_json_flag_only() -> None:
 def test_run_fail_on_warnings_flag_only() -> None:
     """Test that --fail-on-warnings flag works independently."""
     # Test with warnings only
-    with patch.object(check_config, 'check') as mock_check:
+    with patch.object(check_config, "check") as mock_check:
         mock_check.return_value = {
             "except": {},
             "warn": {"light": ["warning message"]},
@@ -279,12 +282,12 @@ def test_run_fail_on_warnings_flag_only() -> None:
             "secret_cache": {},
             "yaml_files": {},
         }
-        
+
         exit_code = check_config.run(["--fail-on-warnings"])
         assert exit_code == 1  # Should exit non-zero due to warnings
-    
+
     # Test with no warnings or errors
-    with patch.object(check_config, 'check') as mock_check:
+    with patch.object(check_config, "check") as mock_check:
         mock_check.return_value = {
             "except": {},
             "warn": {},
@@ -293,12 +296,12 @@ def test_run_fail_on_warnings_flag_only() -> None:
             "secret_cache": {},
             "yaml_files": {},
         }
-        
+
         exit_code = check_config.run(["--fail-on-warnings"])
         assert exit_code == 0  # Should exit zero when no warnings/errors
-    
+
     # Test with both errors and warnings
-    with patch.object(check_config, 'check') as mock_check:
+    with patch.object(check_config, "check") as mock_check:
         mock_check.return_value = {
             "except": {"domain1": ["error"]},
             "warn": {"domain2": ["warning"]},
@@ -307,7 +310,7 @@ def test_run_fail_on_warnings_flag_only() -> None:
             "secret_cache": {},
             "yaml_files": {},
         }
-        
+
         exit_code = check_config.run(["--fail-on-warnings"])
         assert exit_code == 1  # max(1, 1) = 1
 
@@ -316,7 +319,10 @@ def test_run_fail_on_warnings_flag_only() -> None:
 @pytest.mark.usefixtures("mock_is_file", "mock_hass_config_yaml")
 def test_run_both_flags_combined() -> None:
     """Test that both flags work together correctly."""
-    with patch('builtins.print') as mock_print, patch.object(check_config, 'check') as mock_check:
+    with (
+        patch("builtins.print") as mock_print,
+        patch.object(check_config, "check") as mock_check,
+    ):
         # Test with warnings only
         mock_check.return_value = {
             "except": {},
@@ -326,17 +332,17 @@ def test_run_both_flags_combined() -> None:
             "secret_cache": {},
             "yaml_files": {},
         }
-        
+
         exit_code = check_config.run(["--json", "--fail-on-warnings"])
-        
+
         # Should exit with code 1 due to --fail-on-warnings and warnings present
         assert exit_code == 1
-        
+
         # Should have printed JSON
         assert mock_print.call_count == 1
         json_output = mock_print.call_args[0][0]
         parsed_json = json.loads(json_output)
-        
+
         # Verify JSON content
         assert parsed_json["total_errors"] == 0
         assert parsed_json["total_warnings"] == 1
@@ -347,7 +353,10 @@ def test_run_both_flags_combined() -> None:
 @pytest.mark.usefixtures("mock_is_file", "mock_hass_config_yaml")
 def test_run_json_output_structure() -> None:
     """Test JSON output contains all required fields with correct types."""
-    with patch('builtins.print') as mock_print, patch.object(check_config, 'check') as mock_check:
+    with (
+        patch("builtins.print") as mock_print,
+        patch.object(check_config, "check") as mock_check,
+    ):
         mock_check.return_value = {
             "except": {"domain1": ["error1", {"config": "bad"}]},
             "warn": {"domain2": ["warning1", {"config": "deprecated"}]},
@@ -356,17 +365,27 @@ def test_run_json_output_structure() -> None:
             "secret_cache": {},
             "yaml_files": {},
         }
-        
+
         exit_code = check_config.run(["--json", "--config", "/test/path"])
-        
+
         json_output = mock_print.call_args[0][0]
         parsed_json = json.loads(json_output)
-        
+
+        # Should exit with code 1 due to errors
+        assert exit_code == 1
+
         # Test all required fields are present
-        required_fields = ["config_dir", "total_errors", "total_warnings", "errors", "warnings", "components"]
+        required_fields = [
+            "config_dir",
+            "total_errors",
+            "total_warnings",
+            "errors",
+            "warnings",
+            "components",
+        ]
         for field in required_fields:
             assert field in parsed_json, f"Missing required field: {field}"
-        
+
         # Test field types and values
         assert isinstance(parsed_json["config_dir"], str)
         assert isinstance(parsed_json["total_errors"], int)
@@ -374,14 +393,18 @@ def test_run_json_output_structure() -> None:
         assert isinstance(parsed_json["errors"], dict)
         assert isinstance(parsed_json["warnings"], dict)
         assert isinstance(parsed_json["components"], list)
-        
+
         # Test counts are correct
         assert parsed_json["total_errors"] == 2  # 2 items in domain1 list
         assert parsed_json["total_warnings"] == 2  # 2 items in domain2 list
-        
+
         # Test components is a list of strings
         assert all(isinstance(comp, str) for comp in parsed_json["components"])
-        assert set(parsed_json["components"]) == {"homeassistant", "light", "automation"}
+        assert set(parsed_json["components"]) == {
+            "homeassistant",
+            "light",
+            "automation",
+        }
 
 
 def test_run_exit_code_logic() -> None:
@@ -390,30 +413,81 @@ def test_run_exit_code_logic() -> None:
         # (errors, warnings, flags, expected_exit_code)
         ({}, {}, [], 0),  # No errors, no warnings, no flags
         ({}, {}, ["--json"], 0),  # No errors, no warnings, json only
-        ({}, {}, ["--fail-on-warnings"], 0),  # No errors, no warnings, fail-on-warnings only
-        ({}, {}, ["--json", "--fail-on-warnings"], 0),  # No errors, no warnings, both flags
-        
-        ({}, {"domain": ["warning"]}, [], 0),  # Warnings only, no flags (backwards compatible)
+        (
+            {},
+            {},
+            ["--fail-on-warnings"],
+            0,
+        ),  # No errors, no warnings, fail-on-warnings only
+        (
+            {},
+            {},
+            ["--json", "--fail-on-warnings"],
+            0,
+        ),  # No errors, no warnings, both flags
+        (
+            {},
+            {"domain": ["warning"]},
+            [],
+            0,
+        ),  # Warnings only, no flags (backwards compatible)
         ({}, {"domain": ["warning"]}, ["--json"], 0),  # Warnings only, json only
-        ({}, {"domain": ["warning"]}, ["--fail-on-warnings"], 1),  # Warnings only, fail-on-warnings
-        ({}, {"domain": ["warning"]}, ["--json", "--fail-on-warnings"], 1),  # Warnings only, both flags
-        
+        (
+            {},
+            {"domain": ["warning"]},
+            ["--fail-on-warnings"],
+            1,
+        ),  # Warnings only, fail-on-warnings
+        (
+            {},
+            {"domain": ["warning"]},
+            ["--json", "--fail-on-warnings"],
+            1,
+        ),  # Warnings only, both flags
         ({"domain": ["error"]}, {}, [], 1),  # Errors only, no flags
         ({"domain": ["error"]}, {}, ["--json"], 1),  # Errors only, json only
-        ({"domain": ["error"]}, {}, ["--fail-on-warnings"], 1),  # Errors only, fail-on-warnings
-        ({"domain": ["error"]}, {}, ["--json", "--fail-on-warnings"], 1),  # Errors only, both flags
-        
+        (
+            {"domain": ["error"]},
+            {},
+            ["--fail-on-warnings"],
+            1,
+        ),  # Errors only, fail-on-warnings
+        (
+            {"domain": ["error"]},
+            {},
+            ["--json", "--fail-on-warnings"],
+            1,
+        ),  # Errors only, both flags
         ({"domain": ["error"]}, {"domain2": ["warning"]}, [], 1),  # Both, no flags
-        ({"domain": ["error"]}, {"domain2": ["warning"]}, ["--json"], 1),  # Both, json only
-        ({"domain": ["error"]}, {"domain2": ["warning"]}, ["--fail-on-warnings"], 1),  # Both, fail-on-warnings
-        ({"domain": ["error"]}, {"domain2": ["warning"]}, ["--json", "--fail-on-warnings"], 1),  # Both, both flags
-        
+        (
+            {"domain": ["error"]},
+            {"domain2": ["warning"]},
+            ["--json"],
+            1,
+        ),  # Both, json only
+        (
+            {"domain": ["error"]},
+            {"domain2": ["warning"]},
+            ["--fail-on-warnings"],
+            1,
+        ),  # Both, fail-on-warnings
+        (
+            {"domain": ["error"]},
+            {"domain2": ["warning"]},
+            ["--json", "--fail-on-warnings"],
+            1,
+        ),  # Both, both flags
         ({"d1": ["e1"], "d2": ["e2"]}, {}, [], 2),  # Multiple error domains, no flags
-        ({"d1": ["e1"], "d2": ["e2"]}, {"d3": ["w1"]}, ["--fail-on-warnings"], 2),  # Multiple errors + warnings
+        (
+            {"d1": ["e1"], "d2": ["e2"]},
+            {"d3": ["w1"]},
+            ["--fail-on-warnings"],
+            2,
+        ),  # Multiple errors + warnings
     ]
-    
+
     for errors, warnings, flags, expected_exit in test_cases:
-        with patch('builtins.print'), patch.object(check_config, 'check') as mock_check:
+        with patch("builtins.print"), patch.object(check_config, "check") as mock_check:
             mock_check.return_value = {
                 "except": errors,
                 "warn": warnings,
@@ -422,7 +496,7 @@ def test_run_exit_code_logic() -> None:
                 "secret_cache": {},
                 "yaml_files": {},
             }
-            
+
             exit_code = check_config.run(flags)
             assert exit_code == expected_exit, (
                 f"Failed for errors={errors}, warnings={warnings}, flags={flags}. "
@@ -434,7 +508,10 @@ def test_run_exit_code_logic() -> None:
 @pytest.mark.usefixtures("mock_is_file", "mock_hass_config_yaml")
 def test_run_json_no_human_readable_output() -> None:
     """Test that JSON mode doesn't include human-readable messages."""
-    with patch('builtins.print') as mock_print, patch.object(check_config, 'check') as mock_check:
+    with (
+        patch("builtins.print") as mock_print,
+        patch.object(check_config, "check") as mock_check,
+    ):
         mock_check.return_value = {
             "except": {},
             "warn": {},
@@ -443,16 +520,16 @@ def test_run_json_no_human_readable_output() -> None:
             "secret_cache": {},
             "yaml_files": {},
         }
-        
+
         check_config.run(["--json"])
-        
+
         # Should only print once (the JSON output)
         assert mock_print.call_count == 1
-        
+
         # The output should be valid JSON
         json_output = mock_print.call_args[0][0]
-        parsed_json = json.loads(json_output)
-        
+        json.loads(json_output)  # Validate it's valid JSON
+
         # Should not contain human-readable messages like "Testing configuration at"
         assert "Testing configuration at" not in json_output
 
@@ -461,7 +538,10 @@ def test_run_json_no_human_readable_output() -> None:
 @pytest.mark.usefixtures("mock_is_file", "mock_hass_config_yaml")
 def test_run_human_readable_still_works() -> None:
     """Test that human-readable output still works without JSON flag."""
-    with patch('builtins.print') as mock_print, patch.object(check_config, 'check') as mock_check:
+    with (
+        patch("builtins.print") as mock_print,
+        patch.object(check_config, "check") as mock_check,
+    ):
         mock_check.return_value = {
             "except": {},
             "warn": {},
@@ -470,18 +550,27 @@ def test_run_human_readable_still_works() -> None:
             "secret_cache": {},
             "yaml_files": {},
         }
-        
+
         check_config.run([])
-        
+
         # Should print the "Testing configuration at" message
-        printed_outputs = [call[0][0] if call[0] else "" for call in mock_print.call_args_list]
-        testing_message_found = any("Testing configuration at" in output for output in printed_outputs)
-        assert testing_message_found, "Human-readable 'Testing configuration at' message not found"
+        printed_outputs = [
+            call[0][0] if call[0] else "" for call in mock_print.call_args_list
+        ]
+        testing_message_found = any(
+            "Testing configuration at" in output for output in printed_outputs
+        )
+        assert testing_message_found, (
+            "Human-readable 'Testing configuration at' message not found"
+        )
 
 
 def test_run_with_config_path() -> None:
     """Test that config path is correctly included in JSON output."""
-    with patch('builtins.print') as mock_print, patch.object(check_config, 'check') as mock_check:
+    with (
+        patch("builtins.print") as mock_print,
+        patch.object(check_config, "check") as mock_check,
+    ):
         mock_check.return_value = {
             "except": {},
             "warn": {},
@@ -490,13 +579,13 @@ def test_run_with_config_path() -> None:
             "secret_cache": {},
             "yaml_files": {},
         }
-        
+
         test_config_path = "/custom/config/path"
         check_config.run(["--json", "--config", test_config_path])
-        
+
         json_output = mock_print.call_args[0][0]
         parsed_json = json.loads(json_output)
-        
+
         # The config_dir should include the full path
         expected_path = os.path.join(os.getcwd(), test_config_path)
         assert parsed_json["config_dir"] == expected_path
