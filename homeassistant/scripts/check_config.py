@@ -84,7 +84,11 @@ def run(script_args: list) -> int:
         "-s", "--secrets", action="store_true", help="Show secret information"
     )
     parser.add_argument("--json", action="store_true", help="Output JSON format")
-    parser.add_argument("--fail-on-warnings", action="store_true", help="Exit non-zero if warnings are present")
+    parser.add_argument(
+        "--fail-on-warnings",
+        action="store_true",
+        help="Exit non-zero if warnings are present",
+    )
 
     args, unknown = parser.parse_known_args()
     if unknown:
