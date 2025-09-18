@@ -90,7 +90,7 @@ def run(script_args: list) -> int:
         help="Exit non-zero if warnings are present",
     )
 
-    args, unknown = parser.parse_known_args()
+    args, unknown = parser.parse_known_args(script_args)
     if unknown:
         print(color("red", "Unknown arguments:", ", ".join(unknown)))
 
@@ -116,6 +116,7 @@ def run(script_args: list) -> int:
             exit_code = max(exit_code, 1)
         return exit_code
 
+    # Human-readable output starts here
     print(color("bold", "Testing configuration at", config_dir))
 
     domain_info: list[str] = []
