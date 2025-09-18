@@ -105,7 +105,7 @@ def run(script_args: list) -> int:
             "components": list(res["components"].keys()),
         }
         print(json.dumps(json_object, indent=2))
-        
+
         # Determine exit code for JSON mode
         exit_code = len(res["except"])
         if args.fail_on_warnings and res["warn"]:
